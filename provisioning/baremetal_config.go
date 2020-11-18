@@ -117,7 +117,6 @@ func validateDisabledConfig(prov *metal3iov1alpha1.Provisioning) error {
 		Value string
 	}{
 
-		{Name: "ProvisioningIP", Value: prov.Spec.ProvisioningIP},
 		{Name: "ProvisioningNetworkCIDR", Value: prov.Spec.ProvisioningNetworkCIDR},
 		{Name: "ProvisioningOSDownloadURL", Value: prov.Spec.ProvisioningOSDownloadURL},
 	} {
@@ -140,36 +139,53 @@ func getProvisioningIPCIDR(config *metal3iov1alpha1.ProvisioningSpec) *string {
 	return nil
 }
 
-func getDeployKernelUrl(config *metal3iov1alpha1.ProvisioningSpec) *string {
-	if config.ProvisioningIP != "" {
-		deployKernelUrl := fmt.Sprintf("http://%s/%s", net.JoinHostPort(config.ProvisioningIP, baremetalHttpPort), baremetalKernelUrlSubPath)
-		return &deployKernelUrl
+// joinHostIPPort infers the IP version from the machine network CIDR, and wraps it as appropriate. When
+// the provisioning network is disabled, we dynamically set PROVISIONING_IP to the Kubernetes node hostIP using
+// a field selector. However, we have to let Kubernetes do the variable interpolation for us, but its not smart
+// enough to do conditional wrapping of IPv6 URL's, thus we infer it from the machine CIDR.
+func joinHostIPPort(config *metal3iov1alpha1.ProvisioningSpec, port string) string {
+	_, net, err := net.ParseCIDR(config.ProvisioningNetworkCIDR)
+	if err == nil {
+		if net.IP.To4() == nil {
+			return fmt.Sprintf("[$(PROVISIONING_IP)]:%s", port)
+		}
 	}
-	return nil
+
+	return fmt.Sprintf("$(PROVISIONING_IP):%s", port)
+}
+
+func getDeployKernelUrl(config *metal3iov1alpha1.ProvisioningSpec) *string {
+	var deployKernelUrl string
+
+	if config.ProvisioningIP != "" {
+		deployKernelUrl = fmt.Sprintf("http://%s/%s", net.JoinHostPort(config.ProvisioningIP, baremetalHttpPort), baremetalKernelUrlSubPath)
+	} else {
+		deployKernelUrl = fmt.Sprintf("http://%s/%s", joinHostIPPort(config, baremetalHttpPort), baremetalKernelUrlSubPath)
+	}
+
+	return &deployKernelUrl
 }
 
 func getDeployRamdiskUrl(config *metal3iov1alpha1.ProvisioningSpec) *string {
+	var deployRamdiskURL string
+
 	if config.ProvisioningIP != "" {
-		deployRamdiskUrl := fmt.Sprintf("http://%s/%s", net.JoinHostPort(config.ProvisioningIP, baremetalHttpPort), baremetalRamdiskUrlSubPath)
-		return &deployRamdiskUrl
+		deployRamdiskURL = fmt.Sprintf("http://%s/%s", net.JoinHostPort(config.ProvisioningIP, baremetalHttpPort), baremetalRamdiskUrlSubPath)
+	} else {
+		deployRamdiskURL = fmt.Sprintf("http://%s/%s", joinHostIPPort(config, baremetalHttpPort), baremetalRamdiskUrlSubPath)
 	}
-	return nil
+
+	return &deployRamdiskURL
 }
 
-func getIronicEndpoint(config *metal3iov1alpha1.ProvisioningSpec) *string {
-	if config.ProvisioningIP != "" {
-		ironicEndpoint := fmt.Sprintf("http://%s/%s", net.JoinHostPort(config.ProvisioningIP, baremetalIronicPort), baremetalIronicEndpointSubpath)
-		return &ironicEndpoint
-	}
-	return nil
+func getIronicEndpoint() *string {
+	ironicEndpoint := fmt.Sprintf("http://localhost:%s/%s", baremetalIronicPort, baremetalIronicEndpointSubpath)
+	return &ironicEndpoint
 }
 
-func getIronicInspectorEndpoint(config *metal3iov1alpha1.ProvisioningSpec) *string {
-	if config.ProvisioningIP != "" {
-		inspectorEndpoint := fmt.Sprintf("http://%s/%s", net.JoinHostPort(config.ProvisioningIP, baremetalIronicInspectorPort), baremetalIronicEndpointSubpath)
-		return &inspectorEndpoint
-	}
-	return nil
+func getIronicInspectorEndpoint() *string {
+	ironicInspectorEndpoint := fmt.Sprintf("http://localhost:%s/%s", baremetalIronicInspectorPort, baremetalIronicEndpointSubpath)
+	return &ironicInspectorEndpoint
 }
 
 func getProvisioningOSDownloadURL(config *metal3iov1alpha1.ProvisioningSpec) *string {
@@ -190,9 +206,9 @@ func getMetal3DeploymentConfig(name string, baremetalConfig *metal3iov1alpha1.Pr
 	case deployRamdiskUrl:
 		return getDeployRamdiskUrl(baremetalConfig)
 	case ironicEndpoint:
-		return getIronicEndpoint(baremetalConfig)
+		return getIronicEndpoint()
 	case ironicInspectorEndpoint:
-		return getIronicInspectorEndpoint(baremetalConfig)
+		return getIronicInspectorEndpoint()
 	case httpPort:
 		return pointer.StringPtr(baremetalHttpPort)
 	case dhcpRange:
