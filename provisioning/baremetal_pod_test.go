@@ -94,7 +94,7 @@ func TestBuildEnvVar(t *testing.T) {
 	for _, tc := range tCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("Testing tc : %s", tc.name)
-			actualEnvVar := buildEnvVar(tc.configName, &tc.spec)
+			actualEnvVar := buildEnvVar(tc.configName, &tc.spec, "192.168.1.1")
 			assert.Equal(t, tc.expectedEnvVar, actualEnvVar, fmt.Sprintf("%s : Expected : %s Actual : %s", tc.configName, tc.expectedEnvVar, actualEnvVar))
 			return
 		})
@@ -144,7 +144,7 @@ func TestNewMetal3InitContainers(t *testing.T) {
 	for _, tc := range tCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("Testing tc : %s", tc.name)
-			actualContainers := newMetal3InitContainers(&images, &managedSpec)
+			actualContainers := newMetal3InitContainers(&images, &managedSpec, "192.168.1.1")
 			assert.Equal(t, len(tc.expectedContainers), len(actualContainers), fmt.Sprintf("%s : Expected number of Init Containers : %d Actual number of Init Containers : %d", tc.name, len(tc.expectedContainers), len(actualContainers)))
 		})
 	}
@@ -207,7 +207,7 @@ func TestNewMetal3Containers(t *testing.T) {
 	for _, tc := range tCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("Testing tc : %s", tc.name)
-			actualContainers := newMetal3Containers(&images, &tc.config)
+			actualContainers := newMetal3Containers(&images, &tc.config, "192.168.1.1")
 			assert.Equal(t, tc.expectedContainers, len(actualContainers), fmt.Sprintf("%s : Expected number of Containers : %d Actual number of Containers : %d", tc.name, tc.expectedContainers, len(actualContainers)))
 		})
 	}

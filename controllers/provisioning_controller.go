@@ -63,6 +63,7 @@ type ProvisioningReconciler struct {
 	KubeClient     kubernetes.Interface
 	ReleaseVersion string
 	ImagesFilename string
+	HostIP         string
 
 	Generations []osoperatorv1.GenerationStatus
 }
@@ -243,7 +244,7 @@ func (r *ProvisioningReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 	}
 
 	// Proceed with creating a new Metal3 deployment
-	metal3Deployment := provisioning.NewMetal3Deployment(ComponentNamespace, &containerImages, &baremetalConfig.Spec)
+	metal3Deployment := provisioning.NewMetal3Deployment(ComponentNamespace, &containerImages, &baremetalConfig.Spec, r.HostIP)
 	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(metal3Deployment, r.Generations)
 
 	err = controllerutil.SetControllerReference(baremetalConfig, metal3Deployment, r.Scheme)
@@ -270,6 +271,13 @@ func (r *ProvisioningReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 
 // SetupWithManager configures the manager to run the controller
 func (r *ProvisioningReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	mypod, err := r.KubeClient.CoreV1().Pods("openshift-machine-api").Get(context.TODO(), "cluster-baremetal-operator", metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	r.HostIP = mypod.Status.HostIP
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&metal3iov1alpha1.Provisioning{}).
 		Owns(&corev1.Secret{}).

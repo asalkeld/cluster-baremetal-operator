@@ -127,52 +127,41 @@ func validateDisabledConfig(prov *metal3iov1alpha1.Provisioning) error {
 	return nil
 }
 
-func getProvisioningIPCIDR(config *metal3iov1alpha1.ProvisioningSpec) *string {
-	if config.ProvisioningNetworkCIDR != "" && config.ProvisioningIP != "" {
+func getProvisioningIPCIDR(config *metal3iov1alpha1.ProvisioningSpec, hostIP string) *string {
+	if config.ProvisioningNetworkCIDR != "" {
+		provIP := config.ProvisioningIP
+		if provIP == "" {
+			provIP = hostIP
+		}
 		_, net, err := net.ParseCIDR(config.ProvisioningNetworkCIDR)
 		if err == nil {
 			cidr, _ := net.Mask.Size()
-			ipCIDR := fmt.Sprintf("%s/%d", config.ProvisioningIP, cidr)
+			ipCIDR := fmt.Sprintf("%s/%d", provIP, cidr)
 			return &ipCIDR
 		}
 	}
 	return nil
 }
 
-// joinHostIPPort infers the IP version from the machine network CIDR, and wraps it as appropriate. When
-// the provisioning network is disabled, we dynamically set PROVISIONING_IP to the Kubernetes node hostIP using
-// a field selector. However, we have to let Kubernetes do the variable interpolation for us, but its not smart
-// enough to do conditional wrapping of IPv6 URL's, thus we infer it from the machine CIDR.
-func joinHostIPPort(config *metal3iov1alpha1.ProvisioningSpec, port string) string {
-	_, net, err := net.ParseCIDR(config.ProvisioningNetworkCIDR)
-	if err == nil {
-		if net.IP.To4() == nil {
-			return fmt.Sprintf("[$(PROVISIONING_IP)]:%s", port)
-		}
-	}
-
-	return fmt.Sprintf("$(PROVISIONING_IP):%s", port)
-}
-
-func getDeployKernelUrl(config *metal3iov1alpha1.ProvisioningSpec) *string {
+func getDeployKernelUrl(config *metal3iov1alpha1.ProvisioningSpec, hostIP string) *string {
 	var deployKernelUrl string
 
 	if config.ProvisioningIP != "" {
 		deployKernelUrl = fmt.Sprintf("http://%s/%s", net.JoinHostPort(config.ProvisioningIP, baremetalHttpPort), baremetalKernelUrlSubPath)
 	} else {
-		deployKernelUrl = fmt.Sprintf("http://%s/%s", joinHostIPPort(config, baremetalHttpPort), baremetalKernelUrlSubPath)
+		deployKernelUrl = fmt.Sprintf("http://%s/%s", net.JoinHostPort(hostIP, baremetalHttpPort), baremetalKernelUrlSubPath)
 	}
 
 	return &deployKernelUrl
 }
 
-func getDeployRamdiskUrl(config *metal3iov1alpha1.ProvisioningSpec) *string {
+func getDeployRamdiskUrl(config *metal3iov1alpha1.ProvisioningSpec, hostIP string) *string {
 	var deployRamdiskURL string
 
 	if config.ProvisioningIP != "" {
 		deployRamdiskURL = fmt.Sprintf("http://%s/%s", net.JoinHostPort(config.ProvisioningIP, baremetalHttpPort), baremetalRamdiskUrlSubPath)
 	} else {
-		deployRamdiskURL = fmt.Sprintf("http://%s/%s", joinHostIPPort(config, baremetalHttpPort), baremetalRamdiskUrlSubPath)
+		deployRamdiskURL = fmt.Sprintf("http://%s/%s", net.JoinHostPort(hostIP, baremetalHttpPort), baremetalRamdiskUrlSubPath)
 	}
 
 	return &deployRamdiskURL
@@ -195,16 +184,16 @@ func getProvisioningOSDownloadURL(config *metal3iov1alpha1.ProvisioningSpec) *st
 	return nil
 }
 
-func getMetal3DeploymentConfig(name string, baremetalConfig *metal3iov1alpha1.ProvisioningSpec) *string {
+func getMetal3DeploymentConfig(name string, baremetalConfig *metal3iov1alpha1.ProvisioningSpec, hostIP string) *string {
 	switch name {
 	case provisioningIP:
-		return getProvisioningIPCIDR(baremetalConfig)
+		return getProvisioningIPCIDR(baremetalConfig, hostIP)
 	case provisioningInterface:
 		return &baremetalConfig.ProvisioningInterface
 	case deployKernelUrl:
-		return getDeployKernelUrl(baremetalConfig)
+		return getDeployKernelUrl(baremetalConfig, hostIP)
 	case deployRamdiskUrl:
-		return getDeployRamdiskUrl(baremetalConfig)
+		return getDeployRamdiskUrl(baremetalConfig, hostIP)
 	case ironicEndpoint:
 		return getIronicEndpoint()
 	case ironicInspectorEndpoint:

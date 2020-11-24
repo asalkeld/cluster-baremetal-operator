@@ -28,7 +28,7 @@ import (
 
 const testBaremetalProvisioningCR = "test-provisioning-configuration"
 
-func TestValidateManagedProvisioningConfig(t *testing.T) {
+func TestValidateProvisioningConfig(t *testing.T) {
 	baremetalCR := &metal3iov1alpha1.Provisioning{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Provisioning",
@@ -68,43 +68,6 @@ func TestValidateManagedProvisioningConfig(t *testing.T) {
 			expectedMode:  metal3iov1alpha1.ProvisioningNetworkManaged,
 			expectedMsg:   "ProvisioningInterface",
 		},
-	}
-	for _, tc := range tCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Logf("Testing tc : %s", tc.name)
-			baremetalCR.Spec = *tc.spec
-			err := ValidateBaremetalProvisioningConfig(baremetalCR)
-			if !tc.expectedError && err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
-			assert.Equal(t, tc.expectedMode, getProvisioningNetworkMode(baremetalCR), "enabled results did not match")
-			if tc.expectedError {
-				assert.True(t, strings.Contains(err.Error(), tc.expectedMsg))
-			}
-			return
-		})
-	}
-}
-
-func TestValidateUnmanagedProvisioningConfig(t *testing.T) {
-	baremetalCR := &metal3iov1alpha1.Provisioning{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Provisioning",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: testBaremetalProvisioningCR,
-		},
-	}
-
-	tCases := []struct {
-		name          string
-		spec          *metal3iov1alpha1.ProvisioningSpec
-		expectedError bool
-		expectedMode  metal3iov1alpha1.ProvisioningNetwork
-		expectedMsg   string
-	}{
 		{
 			// All fields are specified as they should including the ProvisioningNetwork
 			name:          "ValidUnmanaged",
@@ -127,43 +90,6 @@ func TestValidateUnmanagedProvisioningConfig(t *testing.T) {
 			expectedMode:  metal3iov1alpha1.ProvisioningNetworkUnmanaged,
 			expectedMsg:   "ProvisioningInterface",
 		},
-	}
-	for _, tc := range tCases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Logf("Testing tc : %s", tc.name)
-			baremetalCR.Spec = *tc.spec
-			err := ValidateBaremetalProvisioningConfig(baremetalCR)
-			if !tc.expectedError && err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
-			assert.Equal(t, tc.expectedMode, getProvisioningNetworkMode(baremetalCR), "enabled results did not match")
-			if tc.expectedError {
-				assert.True(t, strings.Contains(err.Error(), tc.expectedMsg))
-			}
-			return
-		})
-	}
-}
-
-func TestValidateDisabledProvisioningConfig(t *testing.T) {
-	baremetalCR := &metal3iov1alpha1.Provisioning{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Provisioning",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: testBaremetalProvisioningCR,
-		},
-	}
-
-	tCases := []struct {
-		name          string
-		spec          *metal3iov1alpha1.ProvisioningSpec
-		expectedError bool
-		expectedMode  metal3iov1alpha1.ProvisioningNetwork
-		expectedMsg   string
-	}{
 		{
 			// All fields are specified as they should including the ProvisioningNetwork
 			name:          "ValidDisabled",
@@ -253,7 +179,7 @@ func TestGetMetal3DeploymentConfig(t *testing.T) {
 			name:          "Disabled Dynamic DeployRamdiskUrl Without Provisioning IP",
 			configName:    deployRamdiskUrl,
 			spec:          disabledProvisioning().ProvisioningIP("").build(),
-			expectedValue: "http://$(PROVISIONING_IP):6180/images/ironic-python-agent.initramfs",
+			expectedValue: "http://192.168.1.1:6180/images/ironic-python-agent.initramfs",
 		},
 		{
 			name:          "Disabled IronicEndpoint",
@@ -295,7 +221,7 @@ func TestGetMetal3DeploymentConfig(t *testing.T) {
 	for _, tc := range tCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("Testing tc : %s", tc.name)
-			actualValue := getMetal3DeploymentConfig(tc.configName, tc.spec)
+			actualValue := getMetal3DeploymentConfig(tc.configName, tc.spec, "192.168.1.1")
 			assert.NotNil(t, actualValue)
 			assert.Equal(t, tc.expectedValue, *actualValue, fmt.Sprintf("%s : Expected : %s Actual : %s", tc.configName, tc.expectedValue, *actualValue))
 			return
