@@ -309,15 +309,18 @@ func (r *ProvisioningReconciler) provisioningInfo(provConfig *metal3iov1alpha1.P
 	if err != nil {
 		return nil, err
 	}
+	klog.Info("APIServerHost", r.APIServerHost)
 
 	ns := provisioning.NetworkStackType(0)
 	for _, ip := range ips {
+		klog.Info("ip", ip, "len", len(ip))
 		if len(ip) == net.IPv4len {
 			ns |= provisioning.NetworkStackV4
 		} else if len(ip) == net.IPv6len {
 			ns |= provisioning.NetworkStackV6
 		}
 	}
+	klog.Info("networkStack", ns)
 
 	return &provisioning.ProvisioningInfo{
 		Client:        r.KubeClient,
